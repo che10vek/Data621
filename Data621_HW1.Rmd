@@ -1,6 +1,6 @@
 ---
 title: "Baseball Data - Data Exploration and Preparation"
-author: "Mary Anna Kivenson"
+author: "Mary Anna Kivenson, Elina Azrilyan"
 date: "February 15, 2020"
 output: html_document
 ---
@@ -291,9 +291,98 @@ model1 <- lm(WINS ~., data = df2)
 car::vif(model1)
 ```
 
-
 ### Create Output
 
 ```{r}
-write.csv(df, "C:\\Users\\mkive\\Documents\\GitHub\\Business-Analytics-Data-Mining\\Business-Analytics-Data-Mining\\Moneyball Regression\\baseball_output.csv")
+#write.csv(df, "C:\\Users\\mkive\\Documents\\GitHub\\Business-Analytics-Data-Mining\\Business-Analytics-Data-Mining\\Moneyball Regression\\baseball_output.csv")
+```
+
+###Linear Model 1.
+
+We will begin with all independent variables and use the back elimination method to eliminate the non-significant ones. 
+
+```{r}
+be_lm1 <- lm(WINS ~., data = df)
+summary(be_lm1)
+```
+
+We will start by eliminating the variables with high p-values and lowest significance from the model
+
+Let's take a look at the resulting model:
+```{r}
+be_lm1_1 <- lm(WINS ~ bt_H + bt_SO + br_SB + ph_HR + fd_E + fd_DP + BB, data = df)
+summary(be_lm1_1)
+```
+
+We are seeing high significance indicators and p-values of 0 across all 10 remaining variables, however our R squared value is rather low - 36. 
+
+The next step is to check residuals plot and QQ plot to check the validity of our model.
+
+```{r}
+plot(be_lm1_1$residuals)
+abline(h = 0, lty = 3)
+
+qqnorm(be_lm1_1$residuals)
+qqline(be_lm1_1$residuals)
+```
+
+Both of these plots show that the model is a reasonable model. There is no pattern evident in the residuals and normality assumptions is close enough, even though there are some outliers. 
+
+We are going to use Box-Cox transformation to determine if a transformation is required.
+```{r}
+boxcox(be_lm1_1, data=df, plotit=T)
+```
+
+Lambda is close to 1, so no transformation is needed. 
+
+###Linear Model 2.
+
+This Linear Model will be built using the variables we believe would have the highest corelation with WINs.
+
+THe following variables will be used:
+- Base Hits by batters (1B,2B,3B,HR)
+- Walks by batters
+- Stolen bases
+- Strikeouts by batters
+- Errors
+- Strikeouts by pitchers
+- Double Plays
+- Hits allowed
+
+```{r}
+be_lm2b <- lm(WINS ~ bt_H + bt_BB + br_SB + bt_SO + fd_E + ph_SO + fd_DP + ph_H, df)
+summary(be_lm2b)
+```
+
+Let's remove the two variables with low significance:
+```{r}
+be_lm2b <- lm(WINS ~ I(bt_H^1/2) + I(bt_BB^1/2) +  I(br_SB^1/2) + I(fd_E^1/2) + I(fd_DP^1/2) + I(ph_H^1/2), df)
+summary(be_lm2b)
+```
+
+```{r}
+plot(be_lm2b$residuals)
+abline(h = 0, lty = 3)
+
+qqnorm(be_lm2b$residuals)
+qqline(be_lm2b$residuals)
+```
+
+```{r}
+dfeval <- read.csv("https://raw.githubusercontent.com/mkivenson/Business-Analytics-Data-Mining/master/Moneyball%20Regression/moneyball-evaluation-data.csv")[-1]
+names(dfeval) <- sub("TEAM_", "", names(dfeval))
+names(dfeval) <- sub("BATTING_", "bt_", names(dfeval))
+names(dfeval) <- sub("BASERUN_", "br_", names(dfeval))
+names(dfeval) <- sub("FIELDING_", "fd_", names(dfeval))
+names(dfeval) <- sub("PITCHING_", "ph_", names(dfeval))
+names(dfeval) <- sub("TARGET_", "", names(dfeval))
+head(dfeval)
+
+pred <- predict(be_lm2b, dfeval, type="response", se.fit=FALSE)
+final <- data.frame(Win_Pred=pred)
+Mean = mean(final[, 1], na.rm = TRUE)
+final[,1][is.na(final[,1])] <- Mean
+#write.csv(final,"Baseball_pred.csv", row.names = FALSE)
+
+plot(be_lm2b)
 ```
