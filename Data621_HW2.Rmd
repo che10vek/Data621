@@ -1,0 +1,79 @@
+---
+title: "DATA 621 – Business Analytics and Data Mining"
+output: html_document
+---
+
+####Homework #2
+#####Critical Thinking Group 2
+#####Elina Azrilyan
+#####March 8th, 2020
+
+
+####Step 1. 
+
+Download the classification output data set.
+
+```{r}
+df <- read.csv("https://raw.githubusercontent.com/che10vek/Data621/master/classification-output-data.csv")
+head(df,10)
+```
+
+####Step 2. 
+
+The data set has three key columns we will use:
+- class: the actual class for the observation
+- scored.class: the predicted class for the observation (based on a threshold of 0.5)
+- scored.probability: the predicted probability of success for the observation
+
+Use the table() function to get the raw confusion matrix for this scored dataset. Make sure you understand the output. In particular, do the rows represent the actual or predicted class? The columns?
+
+```{r}
+cmtable<-table(df$class, df$scored.class)
+cmtable
+```
+
+Interpreting the output of this Confusion Matrix: The rows represent Actual Values, and the columns respesent Predicted Values. Let's rename the rows and columns to to make it clearer.
+
+```{r}
+colnames(cmtable) <- c("Predicted No", "Predicted Yes")
+rownames(cmtable) <- c("Actual No", "Actual Yes")
+cmtable
+```
+
+####Step 3. 
+Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the accuracy of the predictions.
+
+```{r}
+get_accuracy <- function(actual, predicted)
+{
+  cmtable <- as.matrix(table(predicted, actual))
+  TN <- cmtable[1,1]
+  FN <- cmtable[1,2]
+  FP <- cmtable[2,1]
+  TP <- cmtable[2,2]
+  return ((TP + TN) / (TN + FN + TP + FP))
+}
+get_accuracy(df$class, df$scored.class)
+```
+
+####Step 4. 
+Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the classification error rate of the predictions.
+
+```{r}
+get_class_err_rate <- function(actual, predicted)
+{
+  cmtable <- as.matrix(table(predicted, actual))
+  TN <- cmtable[1,1]
+  FN <- cmtable[1,2]
+  FP <- cmtable[2,1]
+  TP <- cmtable[2,2]
+  return ((FP + FN) / (TN + FN + TP + FP))
+}
+get_class_err_rate(df$class, df$scored.class)
+```
+
+Verify that you get an accuracy and an error rate that sums to one.
+
+```{r}
+get_accuracy(df$class, df$scored.class) + get_class_err_rate(df$class, df$scored.class)
+```
