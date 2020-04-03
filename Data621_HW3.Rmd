@@ -1,0 +1,65 @@
+---
+title: "Homework 3 - Crime"
+author: "Elina Azrilyan"
+date: "April, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(MASS)
+library(pROC)
+```
+
+Reading in cleaned up output dataset:
+
+```{r}
+crime_df <- read.csv("https://raw.githubusercontent.com/mkivenson/Business-Analytics-Data-Mining/master/Classification%20Project/training_clean.csv")
+```
+
+###Binary logistic regression models 1. StepAIC 
+
+We will begin by creating a regression with all independent variables and use stepAIC to come up with the best model. 
+
+```{r}
+logit_1 <- glm(target~., family = binomial, data = crime_df)
+summary(logit_1)
+```
+
+```{r}
+logit_2 <- stepAIC(logit_1)
+summary(logit_2)
+
+summary(logit_2$fitted.values)
+```
+The resulting AIC is 143.93 - we will compare it to other models to see if this is the best result. 
+
+Another technique for evaluating model perfomance is the area under the ROC Curve. Higher the area under the curve, better the prediction power of the model. AUC of a perfect predictive model equals 1.
+
+```{r}
+roc(target~logit_2$fitted.values, data = crime_df, plot = TRUE, main = "ROC CURVE", col= "blue")
+auc(target~logit_2$fitted.values, data = crime_df)
+```
+Our AUC is very close to 1 so we conclude this is a very good model in terms of prediciton accuracy. 
+
+### Model 2. Forward Variable Selection approach.
+
+```{r}
+fwd_start <- glm(target~1, family = binomial, data = crime_df)
+summary(fwd_start)
+
+fwd_final <- step(fwd_start, direction = "forward", scope = formula(logit_1))
+summary(fwd_final)
+```
+
+We see the AIC of 145.67, which is a little higher than our earlier model but is still a very good result. 
+
+```{r}
+roc(target~fwd_final$fitted.values, data = crime_df, plot = TRUE, main = "ROC CURVE", col= "blue")
+auc(target~fwd_final$fitted.values, data = crime_df)
+```
+
+The ROC is slightly lower as well - it is 0.9865 but it is still very close to 1 which means that the model is accurate. 
