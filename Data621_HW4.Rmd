@@ -1,0 +1,53 @@
+---
+title: "Homework 4 - Insurance"
+author: "Elina Azrilyan"
+date: "April 22, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(MASS)
+library(pROC)
+```
+
+Reading in cleaned up output dataset:
+
+```{r}
+ins_df <- read.csv( "https://raw.githubusercontent.com/charlsjoseph/Data621/master/Data621-Assignment4/insurance_tf_train.csv")[-1]
+test_set <- read.csv("https://raw.githubusercontent.com/charlsjoseph/Data621/master/Data621-Assignment4/insurance_tf_test.csv")[-1]
+df_eval <- read.csv( "https://raw.githubusercontent.com/charlsjoseph/Data621/master/Data621-Assignment4/insurance_tf_eval.csv")[-1]
+```
+
+###Multiple Linear Regression
+
+####Model 1
+
+We will try to use all the variables for our initial regression model, to identify which appear to show significance.
+
+```{r}
+ins_df$TARGET_FLAG <- NULL
+reg1<-lm(formula = TARGET_AMT ~ ., data = ins_df)
+summary(reg1)
+```
+
+There are a lot of variable with low signifiance and high p-value, so we will try to only leave the variable with high significance for the next model.
+
+```{r}
+reg1_1<-lm(formula = TARGET_AMT ~ KIDSDRIV + PARENT1.Yes + MSTATUS.Yes + TRAVTIME + CAR_USE.Private + TIF + CAR_TYPE.Minivan + REVOKED.Yes + MVR_PTS + CAR_AGE + URBANICITY.Highly.Urban..Urban, data = ins_df)
+summary(reg1_1)
+```
+
+We can see improvements in R-Squared value after we narrowed the model to highly significant variables. It is however still rather low. Only 7% of the variation in the data can be explained by this model. 
+
+We will now use this regression model to predict values for the evaluation data set. 
+```{r}
+reg_pred <- predict(reg1_1, df_eval, type="response",se.fit=FALSE)
+# se.fit=FALSE
+df_eval$TARGET_AMT <- reg_pred
+
+write.csv(df_eval,"eval_results.csv", row.names = FALSE)
+```
