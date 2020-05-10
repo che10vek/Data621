@@ -1,0 +1,251 @@
+---
+title: "CUNY DATA 621 HW5: Wine"
+author: "Group 2: Elina Azrilyan, Charls Joseph, Mary Anna Kivenson, Sunny Mehta, Vinayak Patel"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: pdf_document
+classoption: landscape
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+options(tinytex.verbose = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+options("scipen" = 10)
+
+library(DT)
+library(mlbench)
+library(tidyverse)
+library(VIM)
+library(caret)
+library(corrplot)
+require(gridExtra)
+library(MASS)
+
+```
+
+
+# Data Exploration
+
+```{r}
+df <- read.csv("https://raw.githubusercontent.com/mkivenson/Business-Analytics-Data-Mining/master/Wine%20Count%20Regression/Datasets/wine-training-data.csv")[,-1] # drop the first column, it is the index
+head(df)
+```
+
+
+Taking a look at a summary of the data, there seem to be many missing values in the `ResidualSugar`,`Chlorides`,`FreeSulfurDioxide`,`TotalSulfurDioxide`,`pH`,`Sulphates`,`Alcohol`, and `STARS` fields. The `STARS` and `LabelAppeal` columns are both ordinal variables and may need to be transformed into dummy variables. 
+
+```{r}
+summary(df)
+```
+
+
+
+#### Distributions
+
+The following histograms help visualize the distributions of numerical variables in this dataset. Many of the predictor variables have a narrow spread and have high occurances at the center of the distribution. Normalizing the data may help make the distributions of variables more normal.
+
+
+```{r warning=FALSE}
+grid.arrange(ggplot(df, aes(TARGET)) + geom_histogram(bins = 15, stat = "count"),
+             ggplot(df, aes(FixedAcidity)) + geom_histogram(bins = 15),
+             ggplot(df, aes(VolatileAcidity)) + geom_histogram(bins = 15),
+             ggplot(df, aes(CitricAcid)) + geom_histogram(bins = 15),
+             ggplot(df, aes(ResidualSugar)) + geom_histogram(bins = 15),
+             ggplot(df, aes(Chlorides)) + geom_histogram(bins = 15),
+             ggplot(df, aes(FreeSulfurDioxide)) + geom_histogram(bins = 15),
+             ggplot(df, aes(TotalSulfurDioxide)) + geom_histogram(bins = 15),
+             ggplot(df, aes(Density)) + geom_histogram(bins = 15),
+             ggplot(df, aes(pH)) + geom_histogram(bins = 15),
+             ggplot(df, aes(Sulphates)) + geom_histogram(bins = 15),
+             ggplot(df, aes(Alcohol)) + geom_histogram(bins = 15),
+             ggplot(df, aes(LabelAppeal)) + geom_histogram(bins = 15),
+             ggplot(df, aes(AcidIndex)) + geom_histogram(bins = 15),
+             ggplot(df, aes(STARS)) + geom_histogram(bins = 15),
+             ncol=4)
+```
+
+
+#### Correlation Plot
+
+This correlation plot shows that there is no multicollinearity in the dataset. The correlations between STARS, AcidIndex, LabelAppeal and TARGET are strong. The remaining predictors have little to no correlation with TARGET.
+
+```{r}
+corrplot(cor(df, use = "complete.obs"), method="color", type="lower", tl.col = "black", tl.srt = 5)
+```
+
+
+#### Box Plots
+
+The weak correlations between most of the predictors and TARGET were suprising. The following box plots provide a more in-depth view at the relationship between predictors and the target variable. The plots confirm that the relationship between target and most of the features appears limited.
+
+```{r warning=FALSE, fig.width = 16, fig.height= 10}
+grid.arrange(
+             ggplot(df, aes(x = as.factor(TARGET), FixedAcidity)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), VolatileAcidity)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), CitricAcid)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), ResidualSugar)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), Chlorides)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), FreeSulfurDioxide)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), TotalSulfurDioxide)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), Density)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), pH)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), Sulphates)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), Alcohol)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), LabelAppeal)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), AcidIndex)) +  geom_boxplot(),
+             ggplot(df, aes(x = as.factor(TARGET), STARS)) +  geom_boxplot(),
+             ncol=4)
+```
+
+
+
+### Preprocessing
+
+#### Train Test Split
+
+```{r}
+X_train <- subset(df, select = -c(TARGET))
+y_train <- df$TARGET
+```
+
+
+#### Encoding
+
+The `STARS` and `LabelAppeal` columns contain ordinal data. Using ordinal variables as-is in a model requires the assumption that categories are equally spaced. Since stars and label appeal are both subjective labels, this assumption may not hold true. To resolve this, these ordinal columns will be encoded into dummy variables.
+
+```{r}
+encode_wine_data <- function(df){
+  
+  #ENCODE STARS COLUMN. IF 0 IN ALL 4 COLUMNS, THIS VALUE IS MISSING
+  df$STARS.1 <- replace_na(ifelse(df$STARS == '1', 1, 0),0)
+  df$STARS.2 <- replace_na(ifelse(df$STARS == '2', 1, 0),0)
+  df$STARS.3 <- replace_na(ifelse(df$STARS == '3', 1, 0),0)
+  df$STARS.4 <- replace_na(ifelse(df$STARS == '4', 1, 0),0)
+  
+  
+  #ENCODE LabelAppeal COLUMN
+  df$LabelAppeal.N2 <- ifelse(df$LabelAppeal == '-2', 1, 0)
+  df$LabelAppeal.N1 <- ifelse(df$LabelAppeal == '-1', 1, 0)
+  df$LabelAppeal.P1 <- ifelse(df$LabelAppeal == '1', 1, 0)
+  df$LabelAppeal.P2 <- ifelse(df$LabelAppeal == '2', 1, 0)
+  
+  
+  df <- subset(df, select = -c(STARS, LabelAppeal))  
+  return(df)
+}
+
+
+X_train %>% encode_wine_data() %>% head()
+```
+
+#### Missing Data
+
+The following plots provide a visualization of missing data. There appears to be a patten in the mising values, so it will be useful to include a flag for missing data. KNN imputation is unsupervised, meaning it does not require a target variable. A train test split was performed earlier so that only predictor data is used for imputation.
+
+
+```{r warning=FALSE}
+aggr(X_train, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(df), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+```
+
+
+To fill missing values, knn imputation will be used. As part of knn imputation, the data will also be centered and scaled. An additional column will be added to identify the percent of missing values in each row.
+
+```{r, cache = T}
+fill_wine_data <- function(df){
+  df$missing_amt <- apply(df, 1, function(x) sum(is.na(x)))
+  result <- preProcess(df, method = c("knnImpute"), k = 10)
+  df <- predict(result, df)
+  return(df)
+}
+
+X_train <- X_train %>% encode_wine_data() %>% fill_wine_data()
+```
+
+# Model Building
+
+We take the dataframe with missing values now imputed, and first back-convert the binary variables back to 1s and 0s. (We do not want to center and scale binary variables.)
+  
+Next we split the data in half, fit a poisson regression model using one half to predict the second half TARGET (out-of-sample) and calculate the RMSE. We do this 100 times and keep track of the RMSE each time.
+  
+Below is the mean RMSE from our 100 trials.
+
+```{r}
+train_df <- cbind(TARGET = y_train, X_train) %>% mutate_at(vars(STARS.1:LabelAppeal.P2), function(x) ifelse(x < 0, 0, 1))
+rmse_results <- vector()
+for (i in 1:100){
+  split_df_1 <- train_df %>% sample_frac(0.5)
+  suppressMessages(split_df_2 <- train_df %>% anti_join(split_df_1))
+  glm_fit <- glm(TARGET ~ ., data = split_df_1, family = "poisson")
+  yhats <- predict(glm_fit, split_df_2)
+  rmse <- sqrt(mean((yhats - split_df_2$TARGET)^2))
+  rmse_results[i] <- rmse
+}
+print(mean(rmse_results))
+```
+
+
+For comparison sake, we take the original dataset and impute the missing values using simple medians of each columns. But since a missing value for the `STARS` variable may likely be a negative indicator, we impute 0 there instead of the median.  
+
+Next we repeat the procedure of splitting our data in half, fitting a poisson regression model on one half to predict the TARGET variable in the second half, and keeping track of the RMSE each time.
+
+Below is the mean RMSE from our 100 trials.
+
+```{r}
+median_list <- df %>% summarise_all(.funs = median, na.rm=T) %>% as.list()
+median_list$STARS <- 0
+train_df_orig <- df %>% replace_na(median_list) %>% mutate(STARS = as.factor(STARS), LabelAppeal = as.factor(LabelAppeal)) 
+rmse_results <- vector()
+for (i in 1:100){
+  split_df_1 <- train_df_orig %>% sample_frac(0.5)
+  suppressMessages(split_df_2 <- train_df_orig %>% anti_join(split_df_1))
+  glm_fit <- glm(TARGET ~ ., data = split_df_1, family = "poisson")
+  yhats <- predict(glm_fit, split_df_2)
+  rmse <- sqrt(mean((yhats - split_df_2$TARGET)^2))
+  rmse_results[i] <- rmse
+}
+print(mean(rmse_results))
+
+```
+
+Note it is not substantially different from before.
+
+Either way, we have successfully imputed missing data in order to build an effective regression model.
+
+##Negative Binomial Reression Model 1
+```{r}
+nbm1 <- glm.nb(TARGET ~ VolatileAcidity + Alcohol + STARS.1 + STARS.2 + STARS.3 + STARS.4 + LabelAppeal.N2 + LabelAppeal.N1 + LabelAppeal.P1 + LabelAppeal.P2, data = train_df)
+summary(nbm1)
+
+for (i in 1:100){
+  split_df_1 <- train_df %>% sample_frac(0.5)
+  suppressMessages(split_df_2 <- train_df %>% anti_join(split_df_1))
+  glm_fit <- glm.nb(TARGET ~ VolatileAcidity + Alcohol + STARS.1 + STARS.2 + STARS.3 + STARS.4 + LabelAppeal.N2 + LabelAppeal.N1 + LabelAppeal.P1 + LabelAppeal.P2, data = split_df_1)
+  yhats <- predict(glm_fit, split_df_2)
+  rmse <- sqrt(mean((yhats - split_df_2$TARGET)^2))
+  rmse_results[i] <- rmse
+}
+print(mean(rmse_results))
+```
+
+
+##Negative Binomial Reression Model 2
+
+We will try to simplify this model by selecting fewer varables, using only top and bottom Stars and Label Appeal values and Alcohol. 
+```{r}
+nbm2 <- glm.nb(TARGET ~ Alcohol + STARS.1 + STARS.4 + LabelAppeal.N2 + LabelAppeal.P2, data = train_df)
+summary(nbm2)
+
+for (i in 1:100){
+  split_df_1 <- train_df %>% sample_frac(0.5)
+  suppressMessages(split_df_2 <- train_df %>% anti_join(split_df_1))
+  glm_fit <- glm.nb(TARGET ~ Alcohol + STARS.1 + STARS.4 + LabelAppeal.N2 + LabelAppeal.P2, data = split_df_1)
+  yhats <- predict(glm_fit, split_df_2)
+  rmse <- sqrt(mean((yhats - split_df_2$TARGET)^2))
+  rmse_results[i] <- rmse
+}
+print(mean(rmse_results))
+```
+```
+
+Both models have high significance codes and p-values <0.05 which allows us to conclude that we can reject the null hypothesis. Negative Binomial Regression Model 1 is a better model based on AIC and RMSE value. 
