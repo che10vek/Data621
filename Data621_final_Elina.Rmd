@@ -1,0 +1,313 @@
+---
+title: "Data 621 Final Project"
+author: "Mary Anna Kivenson + Elina v2"
+date: "May 13, 2020"
+output: html_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(corrplot)
+library(dplyr)
+library(ggplot2)
+require(gridExtra)
+library(MASS)
+library(caTools)
+library(caret)
+```
+
+# Data
+
+This dataset is from the UCI Machine Learning Repository and is comprised of student performance inforation. The data contains the following features:
+
+- `school` - student's school (binary: 'GP' - Gabriel Pereira or 'MS' - Mousinho da Silveira)
+- `sex` - student's sex (binary: 'F' - female or 'M' - male)
+- `age` - student's age (numeric: from 15 to 22)
+- `address` - student's home address type (binary: 'U' - urban or 'R' - rural)
+- `famsize` - family size (binary: 'LE3' - less or equal to 3 or 'GT3' - greater than 3)
+- `Pstatus` - parent's cohabitation status (binary: 'T' - living together or 'A' - apart)
+- `Medu` - mother's education (numeric: 0 - none, 1 - primary education (4th grade), 2 - 5th to 9th grade, 3 - secondary education or 4 - higher education)
+- `Fedu` - father's education (numeric: 0 - none, 1 - primary education (4th grade), 2 - 5th to 9th grade, 3 - secondary education or 4 - higher education)
+- `Mjob` - mother's job (nominal: 'teacher', 'health' care related, civil 'services' (e.g. administrative or police), 'at_home' or 'other')
+- `Fjob` - father's job (nominal: 'teacher', 'health' care related, civil 'services' (e.g. administrative or police), 'at_home' or 'other')
+- `reason` - reason to choose this school (nominal: close to 'home', school 'reputation', 'course' preference or 'other')
+- `guardian` - student's guardian (nominal: 'mother', 'father' or 'other')
+- `traveltime` - home to school travel time (numeric: 1 - <15 min., 2 - 15 to 30 min., 3 - 30 min. to 1 hour, or 4 - >1 hour)
+- `studytime` - weekly study time (numeric: 1 - <2 hours, 2 - 2 to 5 hours, 3 - 5 to 10 hours, or 4 - >10 hours)
+- `failures` - number of past class failures (numeric: n if 1<=n<3, else 4)
+- `schoolsup` - extra educational support (binary: yes or no)
+- `famsup` - family educational support (binary: yes or no)
+- `paid` - extra paid classes within the course subject (Math or Portuguese) (binary: yes or no)
+- `activities` - extra-curricular activities (binary: yes or no)
+- `nursery` - attended nursery school (binary: yes or no)
+- `higher` - wants to take higher education (binary: yes or no)
+- `internet` - Internet access at home (binary: yes or no)
+- `romantic` - with a romantic relationship (binary: yes or no)
+- `famrel` - quality of family relationships (numeric: from 1 - very bad to 5 - excellent)
+- `freetime` - free time after school (numeric: from 1 - very low to 5 - very high)
+- `goout` - going out with friends (numeric: from 1 - very low to 5 - very high)
+- `Dalc` - workday alcohol consumption (numeric: from 1 - very low to 5 - very high)
+- `Walc` - weekend alcohol consumption (numeric: from 1 - very low to 5 - very high)
+- `health` - current health status (numeric: from 1 - very bad to 5 - very good)
+- `absences` - number of school absences (numeric: from 0 to 93)
+
+The task associated with this dataset is regression to determine the the grades related with the course subjects:
+
+- `G1` - first period grade (numeric: from 0 to 20)
+- `G2` - second period grade (numeric: from 0 to 20)
+- `G3` - final grade (numeric: from 0 to 20, output target)
+
+```{r}
+df_mat = read.table("https://raw.githubusercontent.com/mkivenson/Business-Analytics-Data-Mining/master/Final%20Project/student-mat.csv",sep=";",header=TRUE)
+df_por = read.table("https://raw.githubusercontent.com/mkivenson/Business-Analytics-Data-Mining/master/Final%20Project/student-por.csv",sep=";",header=TRUE)
+```
+
+
+# Abstract
+
+# Key Words 
+
+# Introduction
+
+The goal of this project is to use features from a student's personal life and activities to predict grades in Math and Portuguese classes. Feature importance and explainability will be particularly useful, as it will indicate which factors are most valuable in grades. Two datasets will be used containing the same features - one for Math grades (`df_mat`) and one for Portuguese grades (`df_por`). There is some overlap in students between the Math and Portuguese classes, so separate models will be created for each dataset. This will also be a useful indicator of whether feature importance varies between math and language skills. 
+
+
+# Methodology
+
+The first step to predicting test scores for math and portuguese classes is data exploration and preprocessing. There are no missing values in the dataset, so no imputation is needed. However, there are many categorical and ordinal variables in the dataset. Categorical variables will be encoded prior to use in linear models, but ordinal variables will be kept as-is. To encode categorical variables, one hot encoding will be used to create dummy variables.
+
+We then divide our variables into two separate datasets for Math and Portugues and divide each of those datasets into test and train data. We used stepwise regression model to build a linear model using our train data and test their performance on test data. 
+
+# Experimentation and Results
+
+## Data Exploration
+
+#### Correlation
+
+The correlation plots below show correlation on numeric columns only, and indicate very limited collinearity in the dataset. The last three columns/rows are the test scores - scores are highly correlated with each other.
+
+```{r}
+df_mat<-as.data.frame(df_mat)
+corrplot(cor(df_mat[,sapply(df_mat, is.numeric)], use = "complete.obs"), method="color", type="lower", tl.col = "black", tl.srt = 5)
+```
+
+```{r}
+df_por<-as.data.frame(df_por)
+corrplot(cor(df_por[,sapply(df_por, is.numeric)], use = "complete.obs"), method="color", type="lower", tl.col = "black", tl.srt = 5)
+```
+
+#### Distributions
+
+The following tables show feature and target variable distributions for math and portuguese data. For both datasets, all grades (G1, G2, and G3) appear to be normally distributed.
+
+```{r fig.height=12, fig.width = 10, warning=FALSE}
+grid.arrange(ggplot(df_mat, aes(school)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(sex)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(age)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(address)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(famsize)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(Pstatus)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(Medu)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(Fedu)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(Mjob)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(Fjob)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(reason)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(guardian)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(traveltime)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(studytime)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(failures)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(schoolsup)) + geom_histogram(stat = "count"),   
+             ggplot(df_mat, aes(famsup)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(paid)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(activities)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(nursery)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(higher)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(internet)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(romantic)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(famrel)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(freetime)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(goout)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(Dalc)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(Walc)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(health)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(absences)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(G1)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(G2)) + geom_histogram(stat = "count"),
+             ggplot(df_mat, aes(G3)) + geom_histogram(stat = "count"),
+             ncol=6)
+```
+
+
+```{r fig.height=12, fig.width = 10, warning=FALSE}
+grid.arrange(ggplot(df_por, aes(school)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(sex)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(age)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(address)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(famsize)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(Pstatus)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(Medu)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(Fedu)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(Mjob)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(Fjob)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(reason)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(guardian)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(traveltime)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(studytime)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(failures)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(schoolsup)) + geom_histogram(stat = "count"),   
+             ggplot(df_por, aes(famsup)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(paid)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(activities)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(nursery)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(higher)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(internet)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(romantic)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(famrel)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(freetime)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(goout)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(Dalc)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(Walc)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(health)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(absences)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(G1)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(G2)) + geom_histogram(stat = "count"),
+             ggplot(df_por, aes(G3)) + geom_histogram(stat = "count"),
+             ncol=6)
+```
+
+
+
+## Data Preparation
+
+### Encoding
+
+The summary of `df_mat` and `df_por` reveals that the dataset has multiple categorical variables that will be encoded into dummy variables. The amount of dummy variables used for each field will be one less than the amount of categories in features. This encoding will should only be used for linear regression models - not tree based models.
+
+- school
+- sex
+- address
+- famsize
+- Pstatus
+- Mjob
+- Fjob
+- reason
+- guardian
+- schoolsup
+- famsup
+- paid
+- activities
+- nursery
+- higher
+- internet
+- romantic
+
+```{r}
+library(onehot)
+
+#encode math data
+encoder <- onehot(df_mat, stringsAsFactors = TRUE)
+df_mat <- predict(encoder, df_mat)
+drop <- c("school=GP", "sex=F", "address=U", "famsize=LE3", "Pstatus=T",
+                        "Mjob=at_home", "Fjob=at_home","reason=course", "guardian=other",
+                        "schoolsup=no", "famsup=no", "paid=no", "activities=no", "nursery=no",
+                        "higher=no", "internet=no", "romantic=no")
+df_mat <- df_mat[,!(colnames(df_mat) %in% drop)]
+
+#encode portuguese data
+encoder <- onehot(df_por, stringsAsFactors = TRUE)
+df_por <- predict(encoder, df_por)
+df_por <- df_por[,!(colnames(df_por) %in% drop)]
+```
+
+
+## Model Building
+
+Let's split our datasets into test and train sets using 80/20 ratio.Portuguese train data set has 511 observations and test data set has 138. The Math train data set has 511 observations and test data set has 86. 
+
+```{r}
+set.seed(95)
+
+#Portugese Data
+df_por2<-as.data.frame(df_por)
+sample <- sample.split(df_por2, SplitRatio = 0.8)
+
+train_por <- subset(df_por2,sample==TRUE)
+test_por <- subset(df_por2,sample==FALSE)
+
+#Math Data
+df_mat2<-as.data.frame(df_mat)
+sample <- sample.split(df_mat2, SplitRatio = 0.8)
+
+train_mat <- subset(df_mat2,sample==TRUE)
+test_mat <- subset(df_mat2,sample==FALSE)
+```
+
+We will use stepwise regression to select the variables for our model.
+```{r}
+#Portugese Data
+model_por <- lm(G3~., train_por)
+step_model_por <- stepAIC(model_por, direction = "both", trace = FALSE)
+summary(step_model_por)
+
+#Math Data
+model_mat <- lm(G3~., train_mat)
+step_model_mat <- stepAIC(model_mat, direction = "both", trace = FALSE)
+summary(step_model_mat)
+```
+
+Let's plot residuals.
+
+```{r}
+#Portuguese Data
+res <- residuals(step_model_por)
+res <- as.data.frame(res)
+qplot(res, data=res, geom='histogram')
+
+par(mfrow=c(2,2))
+plot(step_model_por)
+
+#Math Data
+res <- residuals(step_model_mat)
+res <- as.data.frame(res)
+qplot(res, data=res, geom='histogram')
+
+par(mfrow=c(2,2))
+plot(step_model_mat)
+```
+
+Residuals look pretty good even though the residuals appear to be slightly skewed to the left. Looks like the model is a good fit but there are some exceptions we might want to look into. 
+
+## Model Selection
+
+## Model Evaluation
+
+We will now make predictions and calculate R2 for our test dataset to evaluate the performance of our linear model. 
+```{r}
+mat_pred <- predict(step_model_mat, test_mat, type = "response")
+summary(mat_pred)
+
+por_pred <- predict(step_model_por, test_por, type = "response")
+summary(por_pred)
+
+R2(mat_pred, test_mat$G3)
+R2(por_pred, test_por$G3)
+
+```
+
+The models is performing well and has a very good R^2 values - our models explains 77% of varialbility in math data and 87% in portuguese data which is a very good result. The Portuguese data set is showing better result than the Math data set - the reason for that might be the fast that we have more observations in that dataset which made that model more accurate. 
+
+
+# Experimentation and Results
+
+Our linear model indicates that the following factors can be used in explaining final grades: gender, address, mother's job, reason for choosing the school, travel time, number of past class failures, health, absences and earlier grades.
+
+
+# Discussion and Conclusions
+
+# References
+
+P. Cortez and A. Silva. Using Data Mining to Predict Secondary School Student Performance. In A. Brito and J. Teixeira Eds., Proceedings of 5th FUture BUsiness TEChnology Conference (FUBUTEC 2008) pp. 5-12, Porto, Portugal, April, 2008, EUROSIS, ISBN 978-9077381-39-7.
+
+
+# Appendices
